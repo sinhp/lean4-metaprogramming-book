@@ -98,6 +98,10 @@ We can introduce notation using a `macro` which transforms our syntax to Lean's 
 -/
 import Lean
 
+#print Lean.Syntax
+
+
+
 macro x:ident ":" t:term " ↦ " y:term : term => do
   `(fun $x : $t => $y)
 
@@ -197,14 +201,17 @@ macro_rules
   | `(⟪ $x:arith * $y:arith ⟫) => `(Arith.mul ⟪ $x ⟫ ⟪ $y ⟫)
   | `(⟪ ( $x ) ⟫)              => `( ⟪ $x ⟫ )
 
-#check ⟪ "x" * "y" ⟫
--- Arith.mul (Arith.var "x") (Arith.var "y") : Arith
+#check ⟪ "cat" * "dog" ⟫
+#check `(⟪ "cat" * "dog" ⟫)
+-- Arith.mul (Arith.var "cat") (Arith.var "dog") : Arith
 
 #check ⟪ "x" + "y" ⟫
 -- Arith.add (Arith.var "x") (Arith.var "y") : Arith
 
 #check ⟪ "x" + 20 ⟫
 -- Arith.add (Arith.var "x") (Arith.nat 20) : Arith
+
+#check ⟪ "x" + (20) ⟫
 
 #check ⟪ "x" + "y" * "z" ⟫ -- precedence
 -- Arith.add (Arith.var "x") (Arith.mul (Arith.var "y") (Arith.var "z")) : Arith

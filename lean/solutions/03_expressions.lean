@@ -20,6 +20,7 @@ elab "two" : term => return two
 #check two  -- Nat.add 1 2 : Nat
 #reduce two -- 3
 
+
 /- ### 3. -/
 def three : Expr :=
   Expr.lam `x (Expr.const `Nat [])
@@ -29,6 +30,16 @@ def three : Expr :=
 elab "three" : term => return three
 #check three    -- fun x => Nat.add 1 x : Nat → Nat
 #reduce three 6 -- 7
+
+/-
+fun a, fun b, fun c, (b * a) + c.
+-/
+
+def four' : Expr :=
+  Expr.lam `a (Expr.const `Nat [])
+  (Expr.lam `b (Expr.const `Nat []) (Expr.lam `c (Expr.const `Nat []) (( #[Lean.mkAppN (Expr.const `Nat.mul []), Expr.bvar 0]))(BinderInfo.default)) (BinderInfo.default))
+  (BinderInfo.default)
+
 
 /- ### 4. -/
 def four : Expr :=

@@ -205,11 +205,15 @@ which is useful to avoid typos.
 
 open Lean
 
-def z' := Expr.const `Nat.zero []
+def z' := Expr.const `Nat.zero [] -- arguments are a name and a list of universe levels.
 #eval z' -- Lean.Expr.const `Nat.zero []
 
 def z := Expr.const ``Nat.zero []
+
+#check z
 #eval z -- Lean.Expr.const `Nat.zero []
+
+-- **Q**: what is the difference between single and double backticks?
 
 /-
 The double-backtick variant also resolves the given name, making it fully-qualified.
@@ -219,6 +223,8 @@ if we use it in a context where the `Nat` namespace is not open,
 Lean will complain that there is no constant called `zero` in the environment.
 In contrast, the second expression, `z₂`,
 contains the fully-qualified name `Nat.zero` and does not have this problem.
+
+-- **Note**: the above explanation is not entirely correct. check this with removing the `open Nat` command.
 -/
 
 open Nat
@@ -242,13 +248,29 @@ The first is simply a constant applied to another.
 The second is a recursive definition giving an expression as a function of a natural number.
 -/
 
-def one := Expr.app (.const ``Nat.succ []) z
+def one := Expr.app (.const ``succ []) z
 #eval one
 -- Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.const `Nat.zero [])
 
+
+
+-- succ (succ 1)
+
+def two := Expr.app (.const ``Nat.succ []) one
+/-
+Lean.Expr.app
+  (Lean.Expr.const `Nat.succ [])
+  (Lean.Expr.app (Lean.Expr.const `Nat.succ []) (Lean.Expr.const `Nat.zero []))
+-/
+#eval two
+
+/-- The expression associated to a natural number. -/
 def natExpr: Nat → Expr
 | 0     => z
 | n + 1 => .app (.const ``Nat.succ []) (natExpr n)
+
+#eval natExpr 2
+
 
 /-
 Next we use the variant `mkAppN` which allows application with multiple arguments.
@@ -256,6 +278,25 @@ Next we use the variant `mkAppN` which allows application with multiple argument
 
 def sumExpr : Nat → Nat → Expr
 | n, m => mkAppN (.const ``Nat.add []) #[natExpr n, natExpr m]
+
+/-
+def mkAppN (f : Expr) (args : Array Expr) : Expr :=
+  args.foldl mkApp f
+
+@[match_pattern] def mkApp (f a : Expr) : Expr :=
+  .app f a
+-/
+
+
+#check Lean.mkApp
+--**Q**: why do we need `.mkApp` if `.app` already exists?
+
+#check sumExpr
+
+#eval zero
+
+#eval sumExpr 0 1 --
+-- .app (.app (.const add) (.const zero)) (.app (.const succ) (.const zero))
 
 /-
 As you may have noticed, we didn't show `#eval` outputs for the two last functions.
@@ -270,8 +311,20 @@ The argument `BinderInfo.default` says that `x` is an explicit argument
 (rather than an implicit or typeclass argument).
 -/
 
+-- the expression for `λ (x : Nat). 0`
 def constZero : Expr :=
   .lam `x (.const ``Nat []) (.const ``Nat.zero []) BinderInfo.default
+
+-- binderName = x
+-- binderType = (.const ``Nat [])
+-- body = (.const ``Nat.zero [])
+-- binderInfo = BinderInfo.default
+
+/-
+| lam (binderName : Name) (binderType : Expr) (body : Expr) (binderInfo : BinderInfo)
+-/
+def constZero' : Expr :=
+  .lam `x (.const ``Nat []) (.bvar 0) .default
 
 #eval constZero
 -- Lean.Expr.lam `x (Lean.Expr.const `Nat []) (Lean.Expr.const `Nat.zero [])
@@ -289,6 +342,39 @@ def addOne : Expr :=
   .lam `x nat
     (mkAppN (.const ``Nat.add []) #[.bvar 0, mkNatLit 1])
     BinderInfo.default
+
+#check addOne
+/-
+Lean.Expr.lam
+  `x
+  (Lean.Expr.const `Nat [])
+  (Lean.Expr.app
+    (Lean.Expr.app (Lean.Expr.const `Nat.add []) (Lean.Expr.bvar 0))
+    (Lean.Expr.app
+      (Lean.Expr.app
+        (Lean.Expr.app (Lean.Expr.const `OfNat.ofNat [Lean.Level.zero]) (Lean.Expr.const `Nat []))
+        (Lean.Expr.lit (Lean.Literal.natVal 1)))
+      (Lean.Expr.app (Lean.Expr.const `instOfNatNat []) (Lean.Expr.lit (Lean.Literal.natVal 1)))))
+  (Lean.BinderInfo.default)
+
+-/
+#eval addOne
+
+/-- Tail-recursive version of `List.map`. -/
+@[inline] def mapTR (f : α → β) (as : List α) : List β :=
+  loop as []
+where
+  @[specialize] loop : List α → List β → List β
+  | [],    bs => bs.reverse
+  | a::as, bs => loop as (f a :: bs)
+
+#check mapTR.loop
+#eval mapTR.loop (fun x => x + 1) [1,2,3] [40,50,60]
+
+#check List.mapTR
+
+
+#eval List.mapTR (fun x => x + 1) [1,2,3]
 
 def mapAddOneNil : Expr :=
   mkAppN (.const ``List.map [levelZero, levelZero])
@@ -330,3 +416,183 @@ allows us to more conveniently construct and destruct larger expressions.
 9. Create expression `fun (p : Prop) => (λ hP : p => hP)`.
 10. [**Universe levels**] Create expression `Type 6`.
 -/
+
+/-
+`1 + 2`
+-/
+
+#check Expr.app
+
+def onePlusTwo : Expr :=
+Expr.app (Expr.app (.const ``Nat.add []) (mkNatLit 1)) (mkNatLit 2)
+
+elab "onePlusTwo'" : term => return onePlusTwo
+
+#check onePlusTwo'
+#reduce onePlusTwo'
+
+def onePlusTwoN : Expr :=
+mkAppN (Expr.const ``Nat.add []) #[mkNatLit 1, mkNatLit 2]
+--Expr.app (Expr.app (.const ``Nat.add []) (mkNatLit 1)) (mkNatLit 2)
+
+elab "onePlusTwoN'" : term => return onePlusTwoN
+
+#check onePlusTwoN'
+#reduce onePlusTwoN'
+
+
+/-
+Create expression `fun x => 1 + x`.
+-/
+
+def onePlusX : Expr :=
+  Expr.lam `x (Expr.const `Nat []) (mkAppN (Expr.const ``Nat.add []) #[mkNatLit 1, .bvar 0]) .default
+
+elab "onePlusX'" : term => return onePlusX
+
+#check onePlusX'
+#eval onePlusX' 3
+
+
+/-
+[**De Bruijn Indexes**] Create expression `fun a, fun b, fun c, (b * a) + c`.
+-/
+
+def mulSum : Expr :=
+  Expr.lam `a (Expr.const `Nat []) (Expr.lam `b (Expr.const `Nat []) (Expr.lam `c (Expr.const `Nat []) (mkAppN (Expr.const ``Nat.add []) #[(mkAppN (Expr.const ``Nat.mul []) #[.bvar 1, .bvar 2]), .bvar 0] ) .default) .default) .default
+
+
+elab "mulSum'" : term  => return mulSum
+
+#check mulSum'
+
+
+
+/-
+5. Create expression `fun x y => x + y`.
+-/
+
+def lamSum : Expr :=
+  Expr.lam `x (Expr.const `Nat []) (Expr.lam `y (Expr.const `Nat []) (mkAppN (Expr.const ``Nat.add []) #[Expr.bvar 1, Expr.bvar 0]) .default) .default
+
+
+elab "lamSum'" : term  => return lamSum
+
+#check lamSum'
+
+#reduce lamSum'
+
+
+/-
+6. Create expression `fun x, String.append "hello, " x`.
+-/
+
+#check String.append
+
+def stringAppend : Expr :=
+  Expr.lam `x (Expr.const `String []) (mkAppN (Expr.const ``String.append []) #[mkStrLit "hello, ", .bvar 0]) .default
+
+elab "stringAppend'" : term  => return stringAppend
+
+#check stringAppend'
+
+/-
+maximum recursion depth has been reached (use `set_option maxRecDepth <num>` to increase limit)
+-/
+#reduce stringAppend' "world"
+
+#eval stringAppend' "world"
+
+def stringAppend_full :=
+  Expr.lam `x (Expr.const `String [])
+  (Lean.mkAppN (Expr.const `String.append []) #[Lean.mkStrLit "Hello, ", Expr.bvar 0])
+  BinderInfo.default
+
+/-
+7. Create expression `∀ x : Prop, x ∧ x`.
+-/
+
+-- Note: `(Expr.const `Prop [])` does not work; unknown constant 'Prop'
+-- instead, use `Expr.sort Lean.Level.zero`
+def propAndProp : Expr :=
+  Expr.forallE `x  (Expr.sort Lean.Level.zero) (mkAppN (Expr.const ``And []) #[Expr.bvar 0, Expr.bvar 0]) .default
+
+elab "propAndProp'" : term  => return propAndProp
+
+#reduce propAndProp'
+#eval propAndProp'
+
+def seven : Expr :=
+  Expr.forallE `x (Expr.sort Lean.Level.zero)
+  (Expr.app (Expr.app (Expr.const `And []) (Expr.bvar 0)) (Expr.bvar 0))
+  BinderInfo.default
+
+elab "seven'" : term => return seven
+
+#check seven'
+#eval seven'
+
+
+/-
+8. Create expression `Nat → String`.
+-/
+
+def natToString : Expr :=
+  Expr.forallE `x (Expr.const `Nat []) (Expr.const `String []) BinderInfo.default
+
+elab "natToString'" : term => return natToString
+
+#reduce natToString'
+
+
+/- ### 8. -/
+def eight : Expr :=
+  Expr.forallE `notUsed
+  (Expr.const `Nat []) (Expr.const `String [])
+  BinderInfo.default
+
+
+elab "eight'" : term => return eight
+
+#check eight'
+
+#reduce eight'
+
+/-
+9. Create expression `fun (p : Prop) => (fun (hP : p) => hP)`.
+-/
+
+def proofProp : Expr :=
+  Expr.lam `p (Expr.sort Lean.Level.zero) (Expr.lam `hP (Expr.bvar 1) (.bvar 0) .default) .default
+
+elab "proofProp'" : term => return proofProp
+
+#check proofProp'
+#reduce proofProp'
+
+
+/- ### 9. -/
+def nine : Expr :=
+  Expr.lam `p (Expr.sort Lean.Level.zero)
+  (
+    Expr.lam `hP (Expr.bvar 0)
+    (Expr.bvar 0)
+    BinderInfo.default
+  )
+  BinderInfo.default
+
+elab "nine" : term => return nine
+
+#check nine
+#reduce nine
+
+/-
+10. [**Universe levels**] Create expression `Type 6`.
+-/
+
+def type6 : Expr :=
+  Expr.sort (Lean.Level.succ (Lean.Level.succ (Lean.Level.succ (Lean.Level.succ (Lean.Level.succ (Lean.Level.succ Lean.Level.zero))))))
+
+elab "type6'" : term => return type6
+
+#check type6'
