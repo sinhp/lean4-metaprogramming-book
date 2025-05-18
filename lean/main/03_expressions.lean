@@ -431,6 +431,9 @@ elab "onePlusTwo'" : term => return onePlusTwo
 #check onePlusTwo'
 #reduce onePlusTwo'
 
+def onePlusTwoFold : Expr :=
+#[mkNatLit 1, mkNatLit 2].foldl mkApp (.const ``Nat.add [])
+
 def onePlusTwoN : Expr :=
 mkAppN (Expr.const ``Nat.add []) #[mkNatLit 1, mkNatLit 2]
 --Expr.app (Expr.app (.const ``Nat.add []) (mkNatLit 1)) (mkNatLit 2)
