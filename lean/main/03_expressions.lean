@@ -476,7 +476,9 @@ elab "mulSum'" : term  => return mulSum
 -/
 
 def lamSum : Expr :=
-  Expr.lam `x (Expr.const `Nat []) (Expr.lam `y (Expr.const `Nat []) (mkAppN (Expr.const ``Nat.add []) #[Expr.bvar 1, Expr.bvar 0]) .default) .default
+  Expr.lam `x (Expr.const `Nat [])
+    (Expr.lam `y (Expr.const `Nat [])
+      (mkAppN (Expr.const ``Nat.add []) #[Expr.bvar 1, Expr.bvar 0]) .default) .default
 
 
 elab "lamSum'" : term  => return lamSum
@@ -484,6 +486,27 @@ elab "lamSum'" : term  => return lamSum
 #check lamSum'
 
 #reduce lamSum'
+
+-- fun x y z => x + y
+def lamSum₂ : Expr :=
+  Expr.lam `x (Expr.const `Nat [])
+    (Expr.lam `y (Expr.const `Nat [])
+      (Expr.lam `z (Expr.const `Nat [])
+        (mkAppN (Expr.const ``Nat.add []) #[Expr.bvar 2, Expr.bvar 1]) .default) .default) .default
+
+elab "lamSum₂'" : term  => return lamSum₂
+#check lamSum₂'
+
+-- fun {x : Nat} => x
+def lamSum₃ : Expr :=
+  Expr.lam `x (Expr.const `Nat []) (Expr.bvar 0) .implicit
+
+elab "lamSum₃'" : term  => return lamSum₃
+#check lamSum₃'
+#reduce lamSum₃'
+--#eval lamSum₃' 3
+
+
 
 
 /-
